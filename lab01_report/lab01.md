@@ -1,12 +1,12 @@
 **姓名：杭逸哲**
 **学号：PB16021135**
 
-#一、实验环境
+# 一、实验环境
 &emsp;&emsp;Ubuntu 16.04LTS
 &emsp;&emsp;QEMU 2.5.0
 &emsp;&emsp;gdb 8.1
 
-#二、准备工作
+# 二、准备工作
 
   1. 在http://www.kernel.org上下载Linux最新内核
 
@@ -20,6 +20,7 @@
     此时出现错误
 
   >  Unable to find the ncurses libraries or the required header files.
+  
   >  /bin/sh: 1: bison: not found
 
 
@@ -28,9 +29,9 @@
     安装后重试即可进行手动配置
      
     进行以下两项配置，以保证可以正常设置断点
-![1](C:\Users\hangy\Desktop\课程文件\操作系统原理与设计\实验\实验一\picture\2.PNG)
+![1](https://github.com/OSH-2018/1-hangyhan/blob/master/lab01_report/pictures/2.PNG)
 
-![2](C:\Users\hangy\Desktop\课程文件\操作系统原理与设计\实验\实验一\picture\3.PNG)
+![2](https://github.com/OSH-2018/1-hangyhan/blob/master/lab01_report/pictures/3.PNG)
 
  6. 输入`make`进行编译
     出现错误 
@@ -44,7 +45,7 @@
  8. 输入' qemu-system-x86_64 -kernel arch/x86_64/boot/bzImage -initrd rootfs.img -append "console=tty1 root=/dev/ram rdinit=/sbin/init nokaslr" -S -s'运行已编译的内核。
     但是在启动内核时，出现错误
 
-    ![](C:\Users\hangy\Desktop\课程文件\操作系统原理与设计\实验\实验一\picture\4.PNG)
+    ![](https://github.com/OSH-2018/1-hangyhan/blob/master/lab01_report/pictures/4.PNG)
 
     提示缺少rootfs文件，并且虚拟机停在`Booting from ROM`。因此需要制作rootfs文件
 
@@ -52,159 +53,290 @@
     执行以下命令从网上下载git；然后下载busybox源码，配置并安装busybox。在配置时注意选
     择Build static binary (no shared libs)。
     >apt-get install git 
+    
     >git clone git://busybox.net/busybox.git
+    
     >make menuconfig
+    
     >make
+    
     >make install
 
-    ![](C:\Users\hangy\Desktop\课程文件\操作系统原理与设计\实验\实验一\picture\5.PNG)
+    ![](https://github.com/OSH-2018/1-hangyhan/blob/master/lab01_report/pictures/5.PNG)
 
   10.编辑rcS文件并创建rootfs.img
     利用命令`touch _install/etc/initd.d/rcS`在该路径下创建.sh文件rcS
     输入"`vi rcS.sh`"并按下"Esc+:+i"进入编辑模式
     在编辑模式下输入
     `#!/bin/sh`
+    
     `mount -t proc none /proc`
+    
     `mount -t sysfs none /sys sbin/mdev -s`
+    
     按下"Esc + : + wq"保存并推出
+    
     输入`chmod +x rcS`使得rcS.sh为可执行文件
+    
     输入`cd _install`切换至_install下，执行`find . | cpio -o --format=newc > ../rootfs.img`
+    
     输入`mv rootfs.img /usr/src/ubuntu-4.16`将生成的rootfs.img镜像文件移至内核内
+    
 
   11.测试能否正常调试
     打开一个终端，输入`cd /usr/src/linux-4.16`切换到内核目录下
     输入`qemu-system-x86_64 -kernel arch/x86_64/boot/bzImage -initrd rootfs.img -append "console=tty1 root=/dev/ram rdinit=/sbin/init nokaslr" -S -s`启动QEMU
+    
     打开另一个终端，同样输入'cd /usr/src/linux-4.16'切换至内核目录下
+    
     输入`gdb -tui`
+    
     输入'file vmlinux'加载符号表
+    
     输入`target remote:1234`建立远程连接
+    
     输入`break start_point`设置断点
+    
     输入`c`执行
+    
     此时内核能在断点停下，但是会出现异常：
 
-![](C:\Users\hangy\Desktop\课程文件\操作系统原理与设计\实验\实验一\picture\6.PNG)
+![](https://github.com/OSH-2018/1-hangyhan/blob/master/lab01_report/pictures/6.PNG)
 
 上网寻找解决方法后，可知：先中断远程调试，然后输入`set arch i386:x86-64:intel`再重新建立连接，便能正常在断点处中止
 
-![](C:\Users\hangy\Desktop\课程文件\操作系统原理与设计\实验\实验一\picture\7.PNG)
+![](https://github.com/OSH-2018/1-hangyhan/blob/master/lab01_report/pictures/7.PNG)
 
 但是在关闭gdb和QEMU后，再次尝试进行远程调试时，该异常再次出现。说明上述方法只是临时的补救措施。
 根据网上的查阅相关资料，需要修改gdb/remote.c文件中的static void。但是并没有在并没有在电脑中找到gdb下的remote.c。所以只能暂时采用上面的办法了。
 
-#三、调试内核启动过程
+# 三、调试内核启动过程
 
   1. 分析start_kernel函数
      打开/usr/src/linux-4.16/init/main.c，查看start_kernel函数的代码。可以发现start_kernel中调用的函数有：
 
 > set_task_stack_end_magic(&init_stack);
+
 > smp_setup_procesor_id();
+
 > debug_objects_early_init();
+
 > cgroup_init_early();
+
 > local_irq_disable();
+
 > boot_cpu_init();
+
 > page_address_init();
+
 > pr_notice("%s", linux_banner);
+
 > setup_arch(&command_line);
+
 > add_latent_entropy();
+
 > add_device_randomness(command_line, strlen(command_line));
+
 > boot_init_stack_canary();
+
 > mm_init_cpumask(&init_mm);
+
 > setup_command_line(command_line);
+
 > setup_nr_cpu_ids();
+
 > setup_per_cpu_areas();
+
 > boot_cpu_state_init();
+
 > smp_prepare_boot_cpu();
+
 > build_all_zonelists(NULL);
+
 > page_alloc_init();
+
 > pr_notice("Kernel command line: %s\n", boot_command_line);
+
 > parse_early_param();
+
 > parse_args("Booting kernel",static_command_line, __start___param, __stop___param - __start___param,-1, -1, NULL, &unknown_bootoption);
+
 > IS_ERR_OR_NULL(after_dashes)
+
 > parse_args("Setting init args", after_dashes, NULL, 0, -1, -1, NULL, set_init_arg);
+
 > jump_label_init();
+
 > setup_log_buf(0);
+
 > vfs_caches_init_early();
+
 > sort_main_extable();
+
 > trap_init();
+
 > mm_init();
+
 > ftrace_init();
+
 > early_trace_init();
+
 > sched_init();
+
 > preempt_disable();
+
 > WARN(!irqs_disabled(),"Interrupts were enabled *very* early, fixing it\n"))
+
 > local_irq_disable();
+
 > radix_tree_init();
+
 > housekeeping_init();
+
 > workqueue_init_early();
+
 > rcu_init();
+
 > trace_init();
+
 > context_tracking_init();
+
 > early_irq_init();
+
 > init_IRQ();
+
 > tick_init();
+
 > rcu_init_nohz();
+
 > init_timers();
+
+
 > hrtimers_init();
+
 > softirq_init();
+
 > timekeeping_init();
+
 > time_init();
+
 > sched_clock_postinit();
+
 > printk_safe_init();
+
 > perf_event_init();
+
 > profile_init();
+
 > call_function_init();
+
 > WARN(!irqs_disabled(), "Interrupts were enabled early\n");
+
 > early_boot_irqs_disabled = false;
+
 > local_irq_enable();
+
+
 > kmem_cache_init_late();
+
+
 > console_init();
+
+
 > panic("Too many boot %s vars at `%s'", panic_later,panic_param);
+
 > lockdep_info();
+
 > locking_selftest();
+
 > mem_encrypt_init();
+
 > page_to_pfn(virt_to_page((void *)initrd_start)) 
+
+
 > pr_crit("initrd overwritten (0x%08lx < 0x%08lx) - disabling it.\n", page_to_pfn(virt_to_page((void *)initrd_start)),min_low_pfn);
+
 > page_ext_init();
+
 > kmemleak_init();
+
 > debug_objects_mem_init();
+
 > setup_per_cpu_pageset();
+
 > numa_policy_init();
+
 > acpi_early_init();
+
+
 > late_time_init();
+
 > calibrate_delay();
+
 > pid_idr_init();
+
 > anon_vma_init();
+
 > efi_enabled(EFI_RUNTIME_SERVICES)
+
 > efi_enter_virtual_mode();
+
 > thread_stack_cache_init();
+
 > cred_init();
+
 > fork_init();
+
 > proc_caches_init();
+
 > buffer_init();
+
 > key_init();
+
 > security_init();
+
 > dbg_late_init();
+
 > vfs_caches_init();
+
 > pagecache_init();
+
 > signals_init();
+
 > proc_root_init();
+
 > nsfs_init();
+
 > cpuset_init();
+
+
 > cgroup_init();
+
 > taskstats_init_early();
+
 > delayacct_init();
+
 > check_bugs();
+
 > acpi_subsystem_init();
+
 > arch_post_acpi_subsys_init();
+
 > sfi_init_late();
+
 > efi_enabled(EFI_RUNTIME_SERVICES)
+
 > efi_free_boot_services();
+
 > rest_init();
+
 > 共调用了一百多个个函数，下面只挑选几个函数进行分析。
 
 
 2.set_task_stack_end_magic()函数
-在gdb中使用单步执行step命令进入set_task_stack_end_magic()函数，该函数的代码为：
+在gdb中使用单步执行step命令进入set_task_stack_end_magic()函数.
+![](https://github.com/OSH-2018/1-hangyhan/blob/master/lab01_report/pictures/9.PNG)
+该函数的代码为：
 
 
 > ```c++
@@ -227,8 +359,6 @@
 3.cgroup_init_early()函数
 
 利用break cgoup_init_early()在cgroup_init_early()处设置断点，可在内核运行到该函数时中断。
-
-![1522920205986](C:\Users\hangy\Desktop\课程文件\操作系统原理与设计\实验\实验一\picture\9)
 
 该函数的代码为：
 
@@ -264,7 +394,7 @@ int __init cgroup_init_early(void)
 
  cgroup是LInux内核提供的一种可以限制单个进程或者多个进程所使用资源的机制，开发者可以利用cgroup提供的精细化控制能力限制某一个或者一组进程对资源的使用。
 
-![](C:\Users\hangy\Desktop\课程文件\操作系统原理与设计\实验\实验一\picture\8.png)
+![](https://github.com/OSH-2018/1-hangyhan/blob/master/lab01_report/pictures/8.png)
 
 上图描述了cgroup(control group)、资源/子系统和进程的关系。
 
